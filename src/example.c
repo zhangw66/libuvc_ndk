@@ -1,7 +1,7 @@
 #include "libuvc/libuvc.h"
 #include <stdio.h>
 #include <unistd.h>
-
+#include <time.h>
 /* This callback function runs once per frame. Use it to perform any
  * quick processing you need, or have it put the frame into your application's
  * input queue. If this function takes too long, you'll start losing frames. */
@@ -82,14 +82,28 @@ void cb(uvc_frame_t *frame, void *ptr) {
 
   uvc_free_frame(bgr);
 }
-
+void print_time(const char *title)
+{
+  struct timespec systime_tmp;
+  static uint64_t cur_host_ts = 0, last_host_ts = 0;
+  clock_gettime(CLOCK_MONOTONIC, &systime_tmp);
+  
+  cur_host_ts = systime_tmp.tv_sec * 1000000 + systime_tmp.tv_nsec / 1000;
+  if (cur_host_ts) 
+    printf("***********diff %lu**************\n", cur_host_ts - last_host_ts);
+  last_host_ts = cur_host_ts;
+  printf("=======%s=======  cur time:%lu\n", title, cur_host_ts);
+}
+#define TEST_TIMES 10
+#define TEST_DELAY 20 //units:second
+int test_times = TEST_TIMES;
 int main(int argc, char **argv) {
   uvc_context_t *ctx;
   uvc_device_t *dev;
   uvc_device_handle_t *devh;
   uvc_stream_ctrl_t ctrl;
   uvc_error_t res;
-
+  while (test_times--) {
   /* Initialize a UVC service context. Libuvc will set up its own libusb
    * context. Replace NULL with a libusb_context pointer to run libuvc
    * from an existing libusb context. */
@@ -105,7 +119,7 @@ int main(int argc, char **argv) {
   /* Locates the first attached UVC device, stores in dev */
   res = uvc_find_device(
       ctx, &dev,
-      0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+      0x05a3, 0x9230, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
 
   if (res < 0) {
     uvc_perror(res, "uvc_find_device"); /* no devices found */
@@ -119,17 +133,17 @@ int main(int argc, char **argv) {
       uvc_perror(res, "uvc_open"); /* unable to open device */
     } else {
       puts("Device opened");
-
+      print_time("start");
       /* Print out a message containing all the information that libuvc
        * knows about the device */
-      uvc_print_diag(devh, stderr);
+      //uvc_print_diag(devh, stderr);
 
       const uvc_format_desc_t *format_desc = uvc_get_format_descs(devh);
       const uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
       enum uvc_frame_format frame_format;
       int width = 640;
       int height = 480;
-      int fps = 30;
+      int fps = 120;
 
       switch (format_desc->bDescriptorSubtype) {
       case UVC_VS_FORMAT_MJPEG:
@@ -142,28 +156,30 @@ int main(int argc, char **argv) {
         frame_format = UVC_FRAME_FORMAT_YUYV;
         break;
       }
-
+      frame_format = UVC_COLOR_FORMAT_MJPEG;
+#if 1
       if (frame_desc) {
         width = frame_desc->wWidth;
         height = frame_desc->wHeight;
         fps = 10000000 / frame_desc->dwDefaultFrameInterval;
       }
-
+#endif
       printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
-
+      print_time("uvc_get_stream_ctrl_format_size");
       /* Try to negotiate first stream profile */
       res = uvc_get_stream_ctrl_format_size(
           devh, &ctrl, /* result stored in ctrl */
           frame_format,
           width, height, fps /* width, height, fps */
       );
-
+      print_time("uvc_print_stream_ctrl");
       /* Print out the result */
       uvc_print_stream_ctrl(&ctrl, stderr);
 
       if (res < 0) {
         uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
       } else {
+        print_time("uvc_start_streaming");
         /* Start the video stream. The library will call user function cb:
          *   cb(frame, (void *) 12345)
          */
@@ -173,10 +189,10 @@ int main(int argc, char **argv) {
           uvc_perror(res, "start_streaming"); /* unable to start stream */
         } else {
           puts("Streaming...");
-
+          print_time("uvc_set_ae_mode");
           uvc_set_ae_mode(devh, 1); /* e.g., turn on auto exposure */
 
-          sleep(10); /* stream for 10 seconds */
+          sleep(5); /* stream for 10 seconds */
 
           /* End the stream. Blocks until last callback is serviced */
           uvc_stop_streaming(devh);
@@ -197,7 +213,8 @@ int main(int argc, char **argv) {
    * and it closes the libusb context if one was not provided. */
   uvc_exit(ctx);
   puts("UVC exited");
-
+  sleep(TEST_DELAY);
+  }
   return 0;
 }
 
