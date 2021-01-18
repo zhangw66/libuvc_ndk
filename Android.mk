@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 USER_LOCAL_PATH:=$(LOCAL_PATH)
-LIBUSB_ROOT_ABS := /home/victor/workdir/libusb/libusb
+LIBUSB_ROOT_ABS := /home/victor/workdir/ainirobot/libusb/libusb
 include $(LIBUSB_ROOT_ABS)/android/jni/libusb.mk
 #restore the LOCAL_PATH
 LOCAL_PATH:=$(USER_LOCAL_PATH)
