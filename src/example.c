@@ -14,17 +14,41 @@ void cb(uvc_frame_t *frame, void *ptr) {
    * static const char *H264_FILE = "iOSDevLog.h264";
    * static const char *MJPEG_FILE = ".jpeg";
    * char filename[16]; */
-
+#if 0
   /* We'll convert the image from YUV/JPEG to BGR, so allocate space */
   bgr = uvc_allocate_frame(frame->width * frame->height * 3);
   if (!bgr) {
     printf("unable to allocate bgr frame!\n");
     return;
   }
-
-  printf("callback! frame_format = %d, width = %d, height = %d, length = %lu, ptr = %d\n",
-    frame->frame_format, frame->width, frame->height, frame->data_bytes, (int) ptr);
-
+  #endif
+   struct timespec systime_tmp;
+  static uint64_t cur_host_ts = 0, last_host_ts = 0;
+  clock_gettime(CLOCK_MONOTONIC, &systime_tmp);
+  
+  cur_host_ts = systime_tmp.tv_sec * 1000000 + systime_tmp.tv_nsec / 1000;
+  #if 0
+  if (cur_host_ts) 
+    printf("***********diff %lu**************\n", cur_host_ts - last_host_ts);
+  last_host_ts = cur_host_ts;
+  printf("=======%s=======  cur time:%lu\n", "frame", cur_host_ts);
+  uint64_t ts;
+  ts = frame->capture_time.tv_sec * 1000000 + frame->capture_time.tv_usec;
+  ts = frame->capture_time_finished.tv_sec * 1000000000 + frame->capture_time_finished.tv_nsec;
+  printf("callback! ts = %lu frame_format = %d, width = %d, height = %d, length = %lu, seq = %u\n",ts, 
+    frame->frame_format, frame->width, frame->height, frame->data_bytes, frame->sequence);
+  #endif
+  static int frame_cnt = 0;
+  fprintf(stderr, "%c", '<');
+  frame_cnt++;
+  if (cur_host_ts - last_host_ts >= 1000000) {
+    last_host_ts = cur_host_ts;
+    printf("fps:%d\n", frame_cnt);
+    frame_cnt = 0;
+  }
+  
+  
+#if 0
   switch (frame->frame_format) {
   case UVC_FRAME_FORMAT_H264:
     /* use `ffplay H264_FILE` to play */
@@ -50,7 +74,7 @@ void cb(uvc_frame_t *frame, void *ptr) {
   default:
     break;
   }
-
+#endif
   /* Call a user function:
    *
    * my_type *my_obj = (*my_type) ptr;
@@ -80,10 +104,11 @@ void cb(uvc_frame_t *frame, void *ptr) {
    * cvReleaseImageHeader(&cvImg);
    */
 
-  uvc_free_frame(bgr);
+ // uvc_free_frame(bgr);
 }
 void print_time(const char *title)
 {
+  #if 0
   struct timespec systime_tmp;
   static uint64_t cur_host_ts = 0, last_host_ts = 0;
   clock_gettime(CLOCK_MONOTONIC, &systime_tmp);
@@ -93,6 +118,7 @@ void print_time(const char *title)
     printf("***********diff %lu**************\n", cur_host_ts - last_host_ts);
   last_host_ts = cur_host_ts;
   printf("=======%s=======  cur time:%lu\n", title, cur_host_ts);
+  #endif
 }
 #define TEST_TIMES 10
 #define TEST_DELAY 20 //units:second
@@ -101,9 +127,9 @@ int main(int argc, char **argv) {
   uvc_context_t *ctx;
   uvc_device_t *dev;
   uvc_device_handle_t *devh;
-  uvc_stream_ctrl_t ctrl;
+  uvc_stream_ctrl_t ctrl = {0};
   uvc_error_t res;
-  while (test_times--) {
+  memset(&ctrl, 0, sizeof(uvc_stream_ctrl_t));
   /* Initialize a UVC service context. Libuvc will set up its own libusb
    * context. Replace NULL with a libusb_context pointer to run libuvc
    * from an existing libusb context. */
@@ -119,8 +145,13 @@ int main(int argc, char **argv) {
   /* Locates the first attached UVC device, stores in dev */
   res = uvc_find_device(
       ctx, &dev,
-      0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
-
+      #if 0
+      0x0c45, 0x6369, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+      #elif 0
+      0x0c45, 0x6340, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+      #else
+      0x0edc, 0x2076, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+      #endif
   if (res < 0) {
     uvc_perror(res, "uvc_find_device"); /* no devices found */
   } else {
@@ -136,15 +167,15 @@ int main(int argc, char **argv) {
       print_time("start");
       /* Print out a message containing all the information that libuvc
        * knows about the device */
-      //uvc_print_diag(devh, stderr);
+      uvc_print_diag(devh, stderr);
 
       const uvc_format_desc_t *format_desc = uvc_get_format_descs(devh);
       const uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
-      enum uvc_frame_format frame_format;
-      int width = 640;
-      int height = 480;
-      int fps = 120;
-
+      enum uvc_frame_format frame_format = UVC_FRAME_FORMAT_YUYV;
+      int width = 1280;
+      int height = 720;
+      int fps = 10;
+#if 0
       switch (format_desc->bDescriptorSubtype) {
       case UVC_VS_FORMAT_MJPEG:
         frame_format = UVC_COLOR_FORMAT_MJPEG;
@@ -156,8 +187,7 @@ int main(int argc, char **argv) {
         frame_format = UVC_FRAME_FORMAT_YUYV;
         break;
       }
-      frame_format = UVC_COLOR_FORMAT_MJPEG;
-#if 1
+     // frame_format = UVC_COLOR_FORMAT_MJPEG;
       if (frame_desc) {
         width = frame_desc->wWidth;
         height = frame_desc->wHeight;
@@ -173,6 +203,7 @@ int main(int argc, char **argv) {
           width, height, fps /* width, height, fps */
       );
       print_time("uvc_print_stream_ctrl");
+      printf("uvc_print_stream_ctrl\n");
       /* Print out the result */
       uvc_print_stream_ctrl(&ctrl, stderr);
 
@@ -190,9 +221,9 @@ int main(int argc, char **argv) {
         } else {
           puts("Streaming...");
           print_time("uvc_set_ae_mode");
-          uvc_set_ae_mode(devh, 1); /* e.g., turn on auto exposure */
+         // uvc_set_ae_mode(devh, 1); /* e.g., turn on auto exposure */
 
-          sleep(5); /* stream for 10 seconds */
+          sleep(30); /* stream for 10 seconds */
 
           /* End the stream. Blocks until last callback is serviced */
           uvc_stop_streaming(devh);
@@ -213,8 +244,6 @@ int main(int argc, char **argv) {
    * and it closes the libusb context if one was not provided. */
   uvc_exit(ctx);
   puts("UVC exited");
-  sleep(TEST_DELAY);
-  }
   return 0;
 }
 

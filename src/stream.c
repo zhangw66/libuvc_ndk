@@ -469,7 +469,6 @@ uvc_error_t uvc_get_stream_ctrl_format_size(
     int width, int height,
     int fps) {
   uvc_streaming_interface_t *stream_if;
-
   /* find a matching frame descriptor and interval */
   DL_FOREACH(devh->info->stream_ifs, stream_if) {
     uvc_format_desc_t *format;
@@ -483,7 +482,6 @@ uvc_error_t uvc_get_stream_ctrl_format_size(
       DL_FOREACH(format->frame_descs, frame) {
         if (frame->wWidth != width || frame->wHeight != height)
           continue;
-
         uint32_t *interval;
 
         ctrl->bInterfaceNumber = stream_if->bInterfaceNumber;
@@ -491,7 +489,8 @@ uvc_error_t uvc_get_stream_ctrl_format_size(
         uvc_claim_if(devh, ctrl->bInterfaceNumber);
         /* get the max values */
         uvc_query_stream_ctrl( devh, ctrl, 1, UVC_GET_MAX);
-
+        printf("uvc_query_stream_ctrl( devh, ctrl, 1, UVC_GET_MAX)\n\n\n");
+        uvc_print_stream_ctrl(ctrl, stderr);
         if (frame->intervals) {
           for (interval = frame->intervals; *interval; ++interval) {
             // allow a fps rate of zero to mean "accept first rate available"
@@ -600,11 +599,13 @@ uvc_error_t uvc_probe_stream_ctrl(
   uvc_query_stream_ctrl(
       devh, ctrl, 1, UVC_SET_CUR
   );
-
+  printf("uvc_query_stream_ctrl( devh, ctrl, 1, UVC_SET_CUR)\n\n\n");
+        uvc_print_stream_ctrl(ctrl, stderr);
   uvc_query_stream_ctrl(
       devh, ctrl, 1, UVC_GET_CUR
   );
-
+printf("uvc_query_stream_ctrl( devh, ctrl, 1, UVC_GET_CUR)\n\n\n");
+        uvc_print_stream_ctrl(ctrl, stderr);
   /** @todo make sure that worked */
   return UVC_SUCCESS;
 }
@@ -1125,9 +1126,9 @@ uvc_error_t uvc_stream_start(
     size_t endpoint_bytes_per_packet = 0;
     /* Index of the altsetting */
     int alt_idx, ep_idx;
-    
+    uvc_print_stream_ctrl(&strmh->cur_ctrl, stderr);
     config_bytes_per_packet = strmh->cur_ctrl.dwMaxPayloadTransferSize;
-
+config_bytes_per_packet = 2400;
     /* Go through the altsettings and find one whose packets are at least
      * as big as our format's maximum per-packet usage. Assume that the
      * packet sizes are increasing. */
